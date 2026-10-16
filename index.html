@@ -1,0 +1,148 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI StudyHub | Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="dashboard">
+
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <h2 class="logo">🎓 StudyHub</h2>
+
+            <nav>
+                <a href="#dashboard" class="nav-link active">🏠 Dashboard</a>
+                <a href="#account" class="nav-link">👤 Account</a>
+                <a href="#tasks" class="nav-link">📝 My Tasks</a>
+            </nav>
+
+            <div class="sidebar-bottom">
+                <p>Keep learning.</p>
+                <p>Keep growing. 🚀</p>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content" id="dashboard">
+
+            <header class="topbar">
+                <div>
+                    <h1>My Dashboard</h1>
+                    <p>Welcome to your personal learning space.</p>
+                </div>
+                <div class="profile">
+    🎓 <span id="studentName">Student</span>
+    <button class="logout-button" onclick="logout()">Logout</button>
+</div>
+            </header>
+
+            <!-- Welcome Banner -->
+            <section class="welcome-banner">
+                <div>
+                    <p class="eyebrow">YOUR LEARNING JOURNEY</p>
+                    <h2>Welcome to AI StudyHub! 👋</h2>
+                    <p>Stay organized, complete your tasks, and reach your goals.</p>
+                </div>
+                <div class="banner-icon">📚</div>
+            </section>
+
+            <!-- Summary Cards -->
+            <section class="stats-grid">
+                <article class="stat-card">
+                    <span class="stat-icon purple">📚</span>
+                    <p>Total Tasks</p>
+                    <h2 id="totalTasks">0</h2>
+                </article>
+
+                <article class="stat-card">
+                    <span class="stat-icon green">✅</span>
+                    <p>Completed Tasks</p>
+                    <h2 id="completedTasks">0</h2>
+                </article>
+
+                <article class="stat-card">
+                    <span class="stat-icon orange">⏳</span>
+                    <p>Pending Tasks</p>
+                    <h2 id="pendingTasks">0</h2>
+                </article>
+
+                <article class="stat-card">
+                    <span class="stat-icon blue">📈</span>
+                    <p>Progress</p>
+                    <h2 id="taskProgress">0%</h2>
+                </article>
+            </section>
+
+            <!-- Account -->
+            <section class="content-card" id="account">
+                <div class="section-heading">
+                    <div>
+                        <h2>Account</h2>
+                        <p>Create an account or log in to continue.</p>
+                    </div>
+                    <span>🔐</span>
+                </div>
+
+                <div class="auth-grid">
+                    <div class="auth-box">
+                        <h3>Create Account</h3>
+                        <label for="signupName">Full Name</label>
+                        <input id="signupName" placeholder="Your name">
+
+                        <label for="signupEmail">Email Address</label>
+                        <input id="signupEmail" type="email" placeholder="Your email">
+
+                        <label for="signupPassword">Password</label>
+                        <input id="signupPassword" type="password" placeholder="Create password">
+
+                        <button class="primary-button" onclick="signup()">Sign Up</button>
+                    </div>
+
+                    <div class="auth-box">
+                        <h3>Welcome Back!</h3>
+                        <label for="loginEmail">Email Address</label>
+                        <input id="loginEmail" type="email" placeholder="Your email">
+
+                        <label for="loginPassword">Password</label>
+                        <input id="loginPassword" type="password" placeholder="Your password">
+
+                        <button class="primary-button" onclick="login()">Log In</button>
+                    </div>
+                </div>
+
+                <p id="authMessage" class="auth-message" aria-live="polite"></p>
+            </section>
+
+            <!-- Tasks -->
+            <section class="content-card" id="tasks">
+                <div class="section-heading">
+                    <div>
+                        <h2>My Tasks</h2>
+                        <p>Small steps lead to big achievements.</p>
+                    </div>
+                    <span>📝</span>
+                </div>
+
+                <div class="task-entry">
+                    <input id="taskInput" placeholder="What do you want to study today?">
+                    <button class="primary-button" onclick="addTask()">+ Add Task</button>
+                </div>
+
+                <ul id="taskList"></ul>
+            </section>
+
+            <footer>
+                <p>Made for your learning journey 💜 | AI StudyHub</p>
+            </footer>
+
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
