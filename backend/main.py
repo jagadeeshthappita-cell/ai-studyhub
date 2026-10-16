@@ -1,84 +1,100 @@
-
+```python
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
 import jwt
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, EmailStr
 from pwdlib import PasswordHash
 
 
-app = FastAPI()
+app = FastAPI(title="AI StudyHub API")
+
 password_hash = PasswordHash.recommended()
 
 # JWT settings
-SECRET_KEY = os.getenv(
-    "STUDYHUB_SECRET_KEY",
-    "dev-only-change-this-secret-before-deployment"
-)
+SECRET_KEY = os.getenv("STUDYHUB_SECRET_KEY")
+
+if not SECRET_KEY:
+    raise RuntimeError(
+        "Set the STUDYHUB_SECRET_KEY environment variable before starting."
+    )
+
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_MINUTES = 30
 
 security = HTTPBearer()
 
+# CORS: allow local development and this project's Vercel deployments
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5500", "http://127.0.0.1:5500"],
+    allow_origins=[
+        "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "https://ai-studyhub-mu.vercel.app",
+    ],
+    allow_origin_regex=r"https://ai-studyhub.*\.vercel\.app",
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
 # Database connection
+DATABASE_PATH = os.getenv("DATABASE_PATH", "studyhub.db")
+
+
 def get_connection():
-    connection = sqlite3.connect("studyhub.db")
+    connection = sqlite3.connect(DATABASE_PATH)
     connection.row_factory = sqlite3.Row
     return connection
 
 
-# Create database tables and update old tasks table
+# Create database tables
 def init_db():
     connection = get_connection()
 
-    connection.execute("""
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT NOT NULL UNIQUE,
-            password_hash TEXT NOT NULL
-        )
-    """)
+    try:
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL
+            )
+        """)
 
-    connection.execute("""
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            text TEXT NOT NULL,
-            completed INTEGER NOT NULL DEFAULT 0,
-            user_id INTEGER REFERENCES users(id)
-        )
-    """)
+        connection.execute("""
+            CREATE TABLE IF NOT EXISTS tasks (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                text TEXT NOT NULL,
+                completed INTEGER NOT NULL DEFAULT 0,
+                user_id INTEGER REFERENCES users(id)
+            )
+        """)
 
-    columns = connection.execute(
-        "PRAGMA table_info(tasks)"
-    ).fetchall()
-    column_names = [column["name"] for column in columns]
+        columns = connection.execute(
+            "PRAGMA table_info(tasks)"
+        ).fetchall()
 
-    if "user_id" not in column_names:
-        connection.execute(
-            "ALTER TABLE tasks ADD COLUMN user_id INTEGER REFERENCES users(id)"
-        )
+        column_names = [column["name"] for column in columns]
 
-    connection.commit()
-    connection.close()
+        if "user_id" not in column_names:
+            connection.execute(
+                "ALTER TABLE tasks ADD COLUMN user_id INTEGER REFERENCES users(id)"
+            )
+
+        connection.commit()
+    finally:
+        connection.close()
 
 
 init_db()
 
 
-# Request formats
+# Request models
 class SignupRequest(BaseModel):
     name: str
     email: EmailStr
@@ -90,7 +106,7 @@ class LoginRequest(BaseModel):
     password: str
 
 
-# Verify token and find current user
+# Verify token and identify logged-in user
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
@@ -104,6 +120,7 @@ def get_current_user(
         )
 
         subject = payload.get("sub")
+
         if subject is None:
             raise HTTPException(
                 status_code=401,
@@ -120,16 +137,20 @@ def get_current_user(
         )
 
     connection = get_connection()
-    user = connection.execute(
-        "SELECT id FROM users WHERE id = ?",
-        (user_id,),
-    ).fetchone()
-    connection.close()
+
+    try:
+        user = connection.execute(
+            "SELECT id FROM users WHERE id = ?",
+            (user_id,),
+        ).fetchone()
+    finally:
+        connection.close()
 
     if user is None:
         raise HTTPException(
             status_code=401,
             detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     return user_id
@@ -146,23 +167,23 @@ def home():
 def get_tasks(user_id: int = Depends(get_current_user)):
     connection = get_connection()
 
-    rows = connection.execute(
-        """
-        SELECT id, text, completed
-        FROM tasks
-        WHERE user_id = ?
-        ORDER BY id
-        """,
-        (user_id,),
-    ).fetchall()
+    try:
+        rows = connection.execute(
+            """
+            SELECT id, text, completed
+            FROM tasks
+            WHERE user_id = ?
+            ORDER BY id
+            """,
+            (user_id,),
+        ).fetchall()
 
-    tasks = [dict(row) for row in rows]
-    connection.close()
+        return {"tasks": [dict(row) for row in rows]}
+    finally:
+        connection.close()
 
-    return {"tasks": tasks}
 
-
-# Add a task for the logged-in user
+# Add a task
 @app.post("/api/tasks")
 def add_task(
     task: str,
@@ -177,17 +198,23 @@ def add_task(
         )
 
     connection = get_connection()
-    connection.execute(
-        "INSERT INTO tasks (text, user_id) VALUES (?, ?)",
-        (task, user_id),
-    )
-    connection.commit()
-    connection.close()
 
-    return {"message": "Task saved successfully!"}
+    try:
+        cursor = connection.execute(
+            "INSERT INTO tasks (text, user_id) VALUES (?, ?)",
+            (task, user_id),
+        )
+        connection.commit()
+
+        return {
+            "message": "Task saved successfully!",
+            "id": cursor.lastrowid,
+        }
+    finally:
+        connection.close()
 
 
-# Delete only the logged-in user's task
+# Delete a task belonging to the logged-in user
 @app.delete("/api/tasks/{task_id}")
 def delete_task(
     task_id: int,
@@ -195,22 +222,23 @@ def delete_task(
 ):
     connection = get_connection()
 
-    cursor = connection.execute(
-        "DELETE FROM tasks WHERE id = ? AND user_id = ?",
-        (task_id, user_id),
-    )
-
-    connection.commit()
-    deleted = cursor.rowcount
-    connection.close()
-
-    if deleted == 0:
-        raise HTTPException(
-            status_code=404,
-            detail="Task not found",
+    try:
+        cursor = connection.execute(
+            "DELETE FROM tasks WHERE id = ? AND user_id = ?",
+            (task_id, user_id),
         )
 
-    return {"message": "Task deleted successfully!"}
+        connection.commit()
+
+        if cursor.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Task not found",
+            )
+
+        return {"message": "Task deleted successfully!"}
+    finally:
+        connection.close()
 
 
 # Mark a task done or undo it
@@ -221,29 +249,30 @@ def update_task(
 ):
     connection = get_connection()
 
-    cursor = connection.execute(
-        """
-        UPDATE tasks
-        SET completed = CASE
-            WHEN completed = 0 THEN 1
-            ELSE 0
-        END
-        WHERE id = ? AND user_id = ?
-        """,
-        (task_id, user_id),
-    )
-
-    connection.commit()
-    updated = cursor.rowcount
-    connection.close()
-
-    if updated == 0:
-        raise HTTPException(
-            status_code=404,
-            detail="Task not found",
+    try:
+        cursor = connection.execute(
+            """
+            UPDATE tasks
+            SET completed = CASE
+                WHEN completed = 0 THEN 1
+                ELSE 0
+            END
+            WHERE id = ? AND user_id = ?
+            """,
+            (task_id, user_id),
         )
 
-    return {"message": "Task status updated!"}
+        connection.commit()
+
+        if cursor.rowcount == 0:
+            raise HTTPException(
+                status_code=404,
+                detail="Task not found",
+            )
+
+        return {"message": "Task status updated!"}
+    finally:
+        connection.close()
 
 
 # Signup
@@ -275,31 +304,33 @@ def signup(user: SignupRequest):
             """,
             (name, email, hashed_password),
         )
+
         connection.commit()
+
+        return {"message": "Account created successfully!"}
 
     except sqlite3.IntegrityError:
         raise HTTPException(
             status_code=409,
             detail="This email is already registered",
         )
-
     finally:
         connection.close()
-
-    return {"message": "Account created successfully!"}
 
 
 # Login and generate JWT token
 @app.post("/api/login")
 def login(user: LoginRequest):
     email = user.email.strip().lower()
-
     connection = get_connection()
-    row = connection.execute(
-        "SELECT * FROM users WHERE email = ?",
-        (email,),
-    ).fetchone()
-    connection.close()
+
+    try:
+        row = connection.execute(
+            "SELECT * FROM users WHERE email = ?",
+            (email,),
+        ).fetchone()
+    finally:
+        connection.close()
 
     if row is None or not password_hash.verify(
         user.password,
@@ -308,6 +339,7 @@ def login(user: LoginRequest):
         raise HTTPException(
             status_code=401,
             detail="Invalid email or password",
+            headers={"WWW-Authenticate": "Bearer"},
         )
 
     payload = {
@@ -332,3 +364,4 @@ def login(user: LoginRequest):
             "email": row["email"],
         },
     }
+```
