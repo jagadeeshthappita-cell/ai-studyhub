@@ -1,4 +1,4 @@
-```python
+
 import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
@@ -364,4 +364,3 @@ def login(user: LoginRequest):
             "email": row["email"],
         },
     }
-```
