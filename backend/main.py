@@ -28,7 +28,7 @@ TOKEN_EXPIRE_MINUTES = 30
 
 security = HTTPBearer()
 
-# CORS: allow local development and this project's Vercel deployments
+# CORS configuration
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
@@ -106,7 +106,7 @@ class LoginRequest(BaseModel):
     password: str
 
 
-# Verify token and identify logged-in user
+# Verify token and identify the logged-in user
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),
 ):
@@ -156,13 +156,13 @@ def get_current_user(
     return user_id
 
 
-# Home
+# Home endpoint
 @app.get("/")
 def home():
     return {"message": "Welcome to AI StudyHub backend!"}
 
 
-# Get tasks belonging to the logged-in user
+# Get tasks for the logged-in user
 @app.get("/api/tasks")
 def get_tasks(user_id: int = Depends(get_current_user)):
     connection = get_connection()
@@ -214,7 +214,7 @@ def add_task(
         connection.close()
 
 
-# Delete a task belonging to the logged-in user
+# Delete a task
 @app.delete("/api/tasks/{task_id}")
 def delete_task(
     task_id: int,
@@ -241,7 +241,7 @@ def delete_task(
         connection.close()
 
 
-# Mark a task done or undo it
+# Mark a task complete or undo completion
 @app.put("/api/tasks/{task_id}")
 def update_task(
     task_id: int,
@@ -318,7 +318,7 @@ def signup(user: SignupRequest):
         connection.close()
 
 
-# Login and generate JWT token
+# Login
 @app.post("/api/login")
 def login(user: LoginRequest):
     email = user.email.strip().lower()
